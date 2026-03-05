@@ -197,7 +197,9 @@ export default function AmpereScanDashboard() {
           
           <div className="flex gap-10 mt-10 relative z-10">
              <div className="flex flex-col items-center">
-                <span className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] mb-1 font-bold">Consumo</span>
+                <span className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] mb-1 font-bold">
+                  {realBattery?.charging ? "Añadiendo" : "Consumo"}
+                </span>
                 <span className="text-2xl font-black font-headline text-primary">{wattage}W</span>
              </div>
              <div className="w-px h-10 bg-white/10 self-center" />
