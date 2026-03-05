@@ -226,9 +226,9 @@ export default function AmpereScanDashboard() {
           />
           <MetricCard 
             title="Fuente" 
-            value={realBattery?.charging ? (deviceInfo.platform === 'android' ? "AC / USB" : "Fuente AC") : "Batería Interna"} 
+            value={realBattery?.charging ? (deviceInfo.platform === 'android' ? "Red AC" : "Fuente AC") : "Batería"} 
             icon={<Usb className="w-4 h-4" />} 
-            description={realBattery?.charging ? "Suministro detectado" : "Descarga interna"}
+            description={realBattery?.charging ? "Cargando..." : "Descargando"}
           />
           <TooltipProvider>
             <Tooltip>
