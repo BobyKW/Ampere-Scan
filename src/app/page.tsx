@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -12,19 +11,34 @@ import {
   Cpu,
   Usb,
   AlertCircle,
-  Monitor
+  Monitor,
+  Menu,
+  Sun,
+  Moon,
+  Settings
 } from "lucide-react"
 import { BatteryGauge } from "@/components/battery-gauge"
 import { MetricCard } from "@/components/metric-card"
 import { AIOptimizer } from "@/components/ai-optimizer"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+  SheetDescription,
+} from "@/components/ui/sheet"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 
 // Definición de tipos para el API de batería experimental
 interface BatteryManager {
@@ -52,11 +66,30 @@ export default function AmpereScanDashboard() {
   })
   const [simulatedTemp, setSimulatedTemp] = React.useState(25.0)
   const [mAOffset, setMAOffset] = React.useState(0)
+  const [theme, setTheme] = React.useState<'light' | 'dark'>('dark')
 
-  // Simulación de fluctuaciones de corriente para dar realismo al bus (jitter)
+  // Manejo de Temas
+  React.useEffect(() => {
+    const savedTheme = localStorage.getItem('ampere_theme') as 'light' | 'dark' | null
+    if (savedTheme) {
+      setTheme(savedTheme)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    const root = window.document.documentElement
+    if (theme === 'dark') {
+      root.classList.add('dark')
+    } else {
+      root.classList.remove('dark')
+    }
+    localStorage.setItem('ampere_theme', theme)
+  }, [theme])
+
+  // Simulación de fluctuaciones de corriente
   React.useEffect(() => {
     const interval = setInterval(() => {
-      setMAOffset(Math.floor(Math.random() * 11) - 5) // +/- 5mA
+      setMAOffset(Math.floor(Math.random() * 11) - 5)
     }, 2500)
     return () => clearInterval(interval)
   }, [])
@@ -64,7 +97,6 @@ export default function AmpereScanDashboard() {
   // Inicialización de datos del dispositivo y batería
   React.useEffect(() => {
     if (typeof window !== "undefined") {
-      // API de Batería Real
       if (navigator.getBattery) {
         navigator.getBattery().then((battery) => {
           const updateBattery = () => {
@@ -76,8 +108,6 @@ export default function AmpereScanDashboard() {
               addEventListener: battery.addEventListener,
               removeEventListener: battery.removeEventListener
             } as BatteryManager)
-            
-            // Simulación reactiva de temperatura: sube si carga
             setSimulatedTemp(battery.charging ? 34.2 : 26.5)
           }
           updateBattery()
@@ -86,7 +116,6 @@ export default function AmpereScanDashboard() {
         })
       }
 
-      // Detección de Plataforma
       const ua = navigator.userAgent
       let model = "Dispositivo Web"
       let os = "Desconocido"
@@ -100,7 +129,6 @@ export default function AmpereScanDashboard() {
           os = `Android ${match[1]}`
           const modelParts = match[2].split(';')
           model = modelParts[modelParts.length - 1].trim()
-          
           if (ua.toLowerCase().includes("pixel")) manufacturer = "Google"
           else if (ua.toLowerCase().includes("samsung") || model.toLowerCase().includes("sm-")) manufacturer = "Samsung"
           else if (ua.toLowerCase().includes("xiaomi")) manufacturer = "Xiaomi"
@@ -114,35 +142,20 @@ export default function AmpereScanDashboard() {
         model = "MacBook / iMac"
         manufacturer = "Apple"
       }
-      
       setDeviceInfo({ model, os, manufacturer, platform })
     }
   }, [])
 
-  // Parámetros técnicos dinámicos
   const currentLevel = realBattery ? Math.round(realBattery.level * 100) : 0
-  const capacity = deviceInfo.platform === "android" ? 5000 : 45000 // mAh (móvil vs laptop)
-  
-  // Amperaje estimado (mA): valores realistas según hardware
+  const capacity = deviceInfo.platform === "android" ? 5000 : 45000
   const baseMA = realBattery?.charging ? (deviceInfo.platform === "android" ? 1800 : 4500) : -450
   const currentMA = currentLevel === 0 ? 0 : baseMA + mAOffset
-  
-  // Voltaje calculado (Curva Li-ion Real: 3.4V a 4.2V)
   const calculatedVoltageV = (3.4 + (currentLevel / 100) * 0.8).toFixed(2)
 
-  // Estimación de tiempo basada en datos reales del sistema si están disponibles
   const calculateEstimatedTime = () => {
     if (!realBattery) return 0
-    
-    // Si el sistema operativo nos da el tiempo exacto, lo usamos (está en segundos)
-    if (realBattery.charging && realBattery.chargingTime !== Infinity) {
-      return Math.round(realBattery.chargingTime / 60)
-    }
-    if (!realBattery.charging && realBattery.dischargingTime !== Infinity) {
-      return Math.round(realBattery.dischargingTime / 60)
-    }
-
-    // Si no, lo calculamos manualmente como respaldo (mAh / mA)
+    if (realBattery.charging && realBattery.chargingTime !== Infinity) return Math.round(realBattery.chargingTime / 60)
+    if (!realBattery.charging && realBattery.dischargingTime !== Infinity) return Math.round(realBattery.dischargingTime / 60)
     const absMA = Math.abs(currentMA)
     if (absMA === 0) return 0
     if (realBattery.charging) {
@@ -167,23 +180,69 @@ export default function AmpereScanDashboard() {
   const systemStatus = getSystemStatus()
 
   return (
-    <main className="min-h-screen pb-12 bg-background text-foreground overflow-x-hidden">
+    <main className="min-h-screen pb-12 bg-background text-foreground transition-colors duration-300 overflow-x-hidden">
       <header className="p-5 flex items-center justify-between border-b border-white/5 sticky top-0 z-50 bg-background/95 backdrop-blur-xl">
         <div className="flex items-center gap-3">
           <div className="bg-primary p-2 rounded-xl shadow-[0_0_20px_rgba(var(--primary),0.3)]">
             <Zap className="w-5 h-5 text-primary-foreground fill-primary-foreground" />
           </div>
           <div className="flex flex-col">
-            <h1 className="text-lg font-extrabold tracking-tight leading-none text-white">Ampere Scan</h1>
+            <h1 className="text-lg font-extrabold tracking-tight leading-none">Ampere Scan</h1>
             <div className="flex items-center gap-1.5 mt-1">
               <span className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_5px_green]" />
               <span className="text-[9px] text-primary font-mono uppercase tracking-[0.2em]">Hardware Link</span>
             </div>
           </div>
         </div>
-        <Badge variant="outline" className="border-primary/40 text-primary font-mono bg-primary/10 px-3 py-1">
-          {deviceInfo.platform === 'android' ? 'ANDROID LINK' : 'DESKTOP LINK'}
-        </Badge>
+        
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="border-primary/40 text-primary font-mono bg-primary/10 px-3 py-1">
+            {deviceInfo.platform === 'android' ? 'ANDROID LINK' : 'DESKTOP LINK'}
+          </Badge>
+          
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="rounded-xl hover:bg-white/5">
+                <Menu className="w-5 h-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="glass-card border-l border-white/10 w-[300px]">
+              <SheetHeader className="mb-8">
+                <SheetTitle className="text-xl font-bold flex items-center gap-2">
+                  <Settings className="w-5 h-5 text-primary" /> Menú de Control
+                </SheetTitle>
+                <SheetDescription>Configuración del panel de diagnóstico</SheetDescription>
+              </SheetHeader>
+              
+              <div className="space-y-6">
+                <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
+                  <div className="flex flex-col gap-0.5">
+                    <Label htmlFor="theme-mode" className="text-sm font-semibold">Tema Visual</Label>
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-widest">
+                      {theme === 'dark' ? 'Modo Oscuro' : 'Modo Claro'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {theme === 'dark' ? <Moon className="w-4 h-4 text-primary" /> : <Sun className="w-4 h-4 text-accent" />}
+                    <Switch 
+                      id="theme-mode" 
+                      checked={theme === 'dark'} 
+                      onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')} 
+                    />
+                  </div>
+                </div>
+                
+                <div className="p-4 bg-primary/10 rounded-2xl border border-primary/20">
+                  <h4 className="text-[10px] font-bold text-primary mb-2 uppercase tracking-widest">Estado del Motor</h4>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium">V 2.4.0 Kernel</span>
+                    <Badge variant="secondary" className="bg-primary/20 text-primary text-[10px]">ACTIVO</Badge>
+                  </div>
+                </div>
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
       </header>
 
       <div className="max-w-md mx-auto p-4 space-y-5">
@@ -211,37 +270,14 @@ export default function AmpereScanDashboard() {
         </section>
 
         <section className="grid grid-cols-2 gap-3">
-          <MetricCard 
-            title="Voltaje" 
-            value={calculatedVoltageV} 
-            unit="V" 
-            icon={<Activity className="w-4 h-4" />} 
-            description="Medición de celda (est.)"
-          />
-          <MetricCard 
-            title="Temp." 
-            value={simulatedTemp.toFixed(1)} 
-            unit="°C" 
-            icon={<Thermometer className="w-4 h-4" />} 
-            description="Sensor térmico (est.)"
-            accent={simulatedTemp > 40}
-          />
-          <MetricCard 
-            title="Fuente" 
-            value={realBattery?.charging ? "Red AC" : "Batería"} 
-            icon={<Usb className="w-4 h-4" />} 
-            description={realBattery?.charging ? "Conectado" : "Desconectado"}
-          />
+          <MetricCard title="Voltaje" value={calculatedVoltageV} unit="V" icon={<Activity className="w-4 h-4" />} description="Medición de celda (est.)" />
+          <MetricCard title="Temp." value={simulatedTemp.toFixed(1)} unit="°C" icon={<Thermometer className="w-4 h-4" />} description="Sensor térmico (est.)" accent={simulatedTemp > 40} />
+          <MetricCard title="Fuente" value={realBattery?.charging ? "Red AC" : "Batería"} icon={<Usb className="w-4 h-4" />} description={realBattery?.charging ? "Conectado" : "Desconectado"} />
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
                 <div className="cursor-help">
-                  <MetricCard 
-                    title="Ciclos" 
-                    value="N/D" 
-                    icon={<ShieldCheck className="w-4 h-4" />} 
-                    description="Dato Protegido"
-                  />
+                  <MetricCard title="Ciclos" value="N/D" icon={<ShieldCheck className="w-4 h-4" />} description="Dato Protegido" />
                 </div>
               </TooltipTrigger>
               <TooltipContent className="bg-card border-white/10 text-[10px] max-w-[200px]">
@@ -278,19 +314,19 @@ export default function AmpereScanDashboard() {
               <div className="grid grid-cols-2 gap-y-5 gap-x-4">
                 <div className="space-y-1">
                   <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Modelo Detectado</span>
-                  <p className="text-sm font-semibold truncate text-white">{deviceInfo.model}</p>
+                  <p className="text-sm font-semibold truncate">{deviceInfo.model}</p>
                 </div>
                 <div className="space-y-1 text-right">
                   <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Fabricante</span>
-                  <p className="text-sm font-semibold text-white">{deviceInfo.manufacturer}</p>
+                  <p className="text-sm font-semibold">{deviceInfo.manufacturer}</p>
                 </div>
                 <div className="space-y-1">
                   <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Tecnología</span>
-                  <p className="text-sm font-semibold text-white">Li-ion / Li-poly</p>
+                  <p className="text-sm font-semibold">Li-ion / Li-poly</p>
                 </div>
                 <div className="space-y-1 text-right">
                   <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Sistema Operativo</span>
-                  <p className="text-sm font-semibold text-white">{deviceInfo.os}</p>
+                  <p className="text-sm font-semibold">{deviceInfo.os}</p>
                 </div>
               </div>
               <div className="pt-4 border-t border-white/5 flex items-center justify-between">
