@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { LucideIcon } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 
@@ -9,14 +8,14 @@ interface MetricCardProps {
   title: string
   value: string | number
   unit?: string
-  icon: LucideIcon
+  icon: React.ReactNode
   description?: string
   trend?: "up" | "down" | "stable"
   accent?: boolean
   className?: string
 }
 
-export function MetricCard({ title, value, unit, icon: Icon, description, accent, className }: MetricCardProps) {
+export function MetricCard({ title, value, unit, icon, description, accent, className }: MetricCardProps) {
   return (
     <Card className={cn("glass-card border-none overflow-hidden", className)}>
       <CardContent className="p-4 flex flex-col h-full justify-between">
@@ -26,7 +25,7 @@ export function MetricCard({ title, value, unit, icon: Icon, description, accent
             "p-1.5 rounded-md",
             accent ? "bg-accent/10 text-accent" : "bg-primary/10 text-primary"
           )}>
-            <Icon className="w-4 h-4" />
+            {icon}
           </div>
         </div>
         <div className="flex flex-col">

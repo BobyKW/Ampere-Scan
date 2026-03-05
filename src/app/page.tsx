@@ -51,7 +51,7 @@ export default function AmpereScanDashboard() {
     }
   }, [])
 
-  // Combinar datos reales con simulados para campos que el navegador no expone por privacidad (mA, voltaje)
+  // Combinar datos reales con simulados para campos que el navegador no expone
   const batteryData = {
     level: realBattery?.level ?? 78,
     status: realBattery?.charging ? "Cargando (Detectado)" : "Descargando",
@@ -141,27 +141,27 @@ export default function AmpereScanDashboard() {
             title="Voltaje" 
             value={batteryData.voltage} 
             unit="mV" 
-            icon={Activity} 
+            icon={<Activity className="w-4 h-4" />} 
             description="Tensión de red"
           />
           <MetricCard 
             title="Temp." 
             value={batteryData.temperature} 
             unit="°C" 
-            icon={Thermometer} 
+            icon={<Thermometer className="w-4 h-4" />} 
             description="Normal < 40°C"
             accent={batteryData.temperature > 40}
           />
           <MetricCard 
             title="Fuente" 
             value={batteryData.powerSource} 
-            icon={Usb} 
+            icon={<Usb className="w-4 h-4" />} 
             description={batteryData.pluggedType}
           />
           <MetricCard 
             title="Salud" 
             value={batteryData.healthStatus} 
-            icon={ShieldCheck} 
+            icon={<ShieldCheck className="w-4 h-4" />} 
             description={`Ciclos: ${batteryData.cycleCount}`}
           />
         </section>
@@ -202,7 +202,7 @@ export default function AmpereScanDashboard() {
                   <Cpu className="w-3.5 h-3.5 text-primary/60" />
                   <span className="text-[9px] text-muted-foreground uppercase font-bold">Estado del Sistema</span>
                 </div>
-                <Badge variant="secondary" className="text-[9px] font-mono bg-white/5 text-primary">OP_STABLE_V2</Badge>
+                <Badge variant="secondary" className="text-[9px] font-mono bg-white/5 text-primary">SISTEMA_PROTEGIDO</Badge>
               </div>
             </CardContent>
           </Card>
