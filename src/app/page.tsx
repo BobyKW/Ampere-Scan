@@ -73,6 +73,15 @@ export default function AmpereScanDashboard() {
     historicalUsage: "Uso balanceado detectado en los últimos ciclos."
   }
 
+  // Cálculo dinámico del estado del sistema
+  const getSystemStatus = () => {
+    if (batteryData.temperature > 40) return { label: "TEMPERATURA_ALTA", variant: "destructive" as const }
+    if (batteryData.level < 15) return { label: "BATERÍA_CRÍTICA", variant: "destructive" as const }
+    if (batteryData.isCharging) return { label: "CARGA_ACTIVA", variant: "default" as const }
+    return { label: "SISTEMA_OPTIMIZADO", variant: "secondary" as const }
+  }
+
+  const systemStatus = getSystemStatus()
   const wattage = Number(((Math.abs(batteryData.mA) * batteryData.voltage) / 1000000).toFixed(1))
 
   const aiInput = {
@@ -202,7 +211,12 @@ export default function AmpereScanDashboard() {
                   <Cpu className="w-3.5 h-3.5 text-primary/60" />
                   <span className="text-[9px] text-muted-foreground uppercase font-bold">Estado del Sistema</span>
                 </div>
-                <Badge variant="secondary" className="text-[9px] font-mono bg-white/5 text-primary">SISTEMA_PROTEGIDO</Badge>
+                <Badge 
+                  variant={systemStatus.variant} 
+                  className={`text-[9px] font-mono ${systemStatus.variant === 'secondary' ? 'bg-white/5 text-primary' : ''}`}
+                >
+                  {systemStatus.label}
+                </Badge>
               </div>
             </CardContent>
           </Card>
