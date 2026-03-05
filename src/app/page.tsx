@@ -48,7 +48,7 @@ export default function AmpereScanDashboard() {
               level: Math.round(battery.level * 100),
               charging: battery.charging
             })
-            // Simulación de temperatura: Más alta si está cargando
+            // Simulación de temperatura reactiva: Sube si carga, baja si no
             setSimulatedTemp(battery.charging ? 36.8 : 30.5)
           }
           updateBattery()
@@ -61,41 +61,55 @@ export default function AmpereScanDashboard() {
       const ua = navigator.userAgent
       let model = "Generic Android"
       let os = "Android OS"
-      let manufacturer = "Desconocido"
+      let manufacturer = "Android OEM"
 
       if (/Android/i.test(ua)) {
         const match = ua.match(/Android\s([0-9\.]+);?\s?([^;)]+)/)
         if (match) {
           os = `Android ${match[1]}`
-          model = match[2].trim()
+          model = match[2].split(';')[0].trim()
           if (model.toLowerCase().includes("pixel")) manufacturer = "Google"
           else if (model.toLowerCase().includes("sm-") || model.toLowerCase().includes("samsung")) manufacturer = "Samsung"
           else if (model.toLowerCase().includes("mi") || model.toLowerCase().includes("redmi")) manufacturer = "Xiaomi"
-          else manufacturer = "Android OEM"
         }
       }
       setDeviceInfo({ model, os, manufacturer })
     }
   }, [])
 
-  // Cálculo dinámico del voltaje (Simulación realista basada en curva de descarga Li-ion)
+  // Parámetros técnicos base
   const currentLevel = realBattery?.level ?? 78
+  const capacity = 5000 // mAh
+  const mA = realBattery?.charging ? 1450 : -320
   const calculatedVoltageMV = Math.round(3400 + (currentLevel * 8)) 
   const calculatedVoltageV = (calculatedVoltageMV / 1000).toFixed(2)
+
+  // Cálculo dinámico del tiempo estimado (Realista)
+  const calculateEstimatedTime = () => {
+    if (mA > 0) {
+      // Tiempo hasta carga completa (100%)
+      const remainingMah = ((100 - currentLevel) * capacity) / 100
+      return Math.round((remainingMah / mA) * 60)
+    } else {
+      // Tiempo hasta agotarse (0%)
+      const availableMah = (currentLevel * capacity) / 100
+      return Math.round((availableMah / Math.abs(mA)) * 60)
+    }
+  }
 
   const batteryData = {
     level: currentLevel,
     status: realBattery?.charging ? "Cargando" : "Descargando",
     isCharging: realBattery?.charging ?? true,
-    mA: realBattery?.charging ? 1450 : -320,
+    mA: mA,
     voltage: calculatedVoltageMV, 
     voltageV: calculatedVoltageV, 
     temperature: simulatedTemp,
     technology: "Li-ion",
-    capacity: 5000,
-    estimatedTime: 42,
+    capacity: capacity,
+    estimatedTime: calculateEstimatedTime(),
     healthStatus: "Excelente",
-    pluggedType: realBattery?.charging ? "USB / AC" : "Ninguna",
+    pluggedType: realBattery?.charging ? "USB / AC" : "Batería",
     powerSource: realBattery?.charging ? "Conectado" : "Batería",
     cycleCount: 142,
     manufacturer: deviceInfo.manufacturer,
