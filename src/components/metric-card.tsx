@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -28,12 +29,18 @@ export function MetricCard({ title, value, unit, icon, description, accent, clas
             {icon}
           </div>
         </div>
-        <div className="flex flex-col">
-          <div className="flex items-baseline gap-1">
-            <span className="text-2xl font-bold font-headline">{value}</span>
-            {unit && <span className="text-sm text-muted-foreground">{unit}</span>}
+        <div className="flex flex-col min-w-0">
+          <div className="flex items-baseline gap-1 min-w-0">
+            <span className="text-2xl font-bold font-headline truncate min-w-0">
+              {value}
+            </span>
+            {unit && <span className="text-sm text-muted-foreground shrink-0">{unit}</span>}
           </div>
-          {description && <p className="text-[10px] text-muted-foreground mt-1 line-clamp-1">{description}</p>}
+          {description && (
+            <p className="text-[10px] text-muted-foreground mt-1 line-clamp-1 truncate">
+              {description}
+            </p>
+          )}
         </div>
       </CardContent>
     </Card>
