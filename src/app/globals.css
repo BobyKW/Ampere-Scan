@@ -1,29 +1,30 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 220 15% 10%;
+    --background: 220 15% 5%;
     --foreground: 220 10% 98%;
-    --card: 220 15% 12%;
+    --card: 220 15% 8%;
     --card-foreground: 220 10% 98%;
-    --popover: 220 15% 10%;
+    --popover: 220 15% 5%;
     --popover-foreground: 220 10% 98%;
     --primary: 210 90% 64%;
     --primary-foreground: 220 10% 10%;
-    --secondary: 220 15% 20%;
+    --secondary: 220 15% 15%;
     --secondary-foreground: 220 10% 98%;
-    --muted: 220 15% 20%;
-    --muted-foreground: 220 10% 65%;
+    --muted: 220 15% 15%;
+    --muted-foreground: 220 10% 55%;
     --accent: 40 90% 70%;
     --accent-foreground: 220 10% 10%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 220 15% 20%;
-    --input: 220 15% 20%;
+    --border: 220 15% 15%;
+    --input: 220 15% 15%;
     --ring: 210 90% 64%;
-    --radius: 0.75rem;
+    --radius: 1rem;
     --chart-1: 210 90% 64%;
     --chart-2: 40 90% 70%;
     --chart-3: 160 60% 45%;
@@ -38,18 +39,29 @@
   }
   body {
     @apply bg-background text-foreground font-body antialiased;
-    background-image: radial-gradient(circle at 50% 0%, hsl(210 90% 64% / 0.05) 0%, transparent 50%);
+    background-image: 
+      radial-gradient(circle at 50% 0%, hsl(210 90% 64% / 0.08) 0%, transparent 60%),
+      radial-gradient(circle at 0% 100%, hsl(40 90% 70% / 0.02) 0%, transparent 40%);
   }
 }
 
 .glass-card {
-  @apply bg-card/50 backdrop-blur-md border border-white/5;
+  @apply bg-card/40 backdrop-blur-xl border border-white/5;
 }
 
 .energy-glow {
-  box-shadow: 0 0 20px -5px hsl(var(--primary) / 0.3);
+  filter: drop-shadow(0 0 10px hsl(var(--primary) / 0.4));
 }
 
 .gauge-progress {
-  transition: stroke-dashoffset 1s ease-in-out;
+  transition: stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.02); }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 3s infinite ease-in-out;
 }
