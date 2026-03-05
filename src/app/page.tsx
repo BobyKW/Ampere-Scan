@@ -161,7 +161,7 @@ export default function AmpereScanDashboard() {
     if (simulatedTemp > 45) return { label: "TEMPERATURA_ALTA", variant: "destructive" as const }
     if (currentLevel < 15 && currentLevel > 0) return { label: "BATERÍA_CRÍTICA", variant: "destructive" as const }
     if (realBattery?.charging) return { label: "CARGA_ACTIVA", variant: "default" as const }
-    return { label: "SISTEMA_ESTABLE", variant: "secondary" as const }
+    return { label: "SISTEMA_OPTIMIZADO", variant: "secondary" as const }
   }
 
   const systemStatus = getSystemStatus()
