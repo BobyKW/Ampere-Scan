@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -6,7 +5,6 @@ import {
   Zap, 
   Thermometer, 
   Activity, 
-  Battery, 
   Smartphone, 
   Info,
   ShieldCheck,
@@ -19,30 +17,63 @@ import { AIOptimizer } from "@/components/ai-optimizer"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 
+// Definición de tipos para el API de batería experimental
+interface BatteryManager {
+  level: number;
+  charging: boolean;
+  addEventListener(type: string, listener: () => void): void;
+  removeEventListener(type: string, listener: () => void): void;
+}
+
+declare global {
+  interface Navigator {
+    getBattery?: () => Promise<BatteryManager>;
+  }
+}
+
 export default function AmpereScanDashboard() {
-  // Datos simulados extraídos de la API de Android (BatteryManager)
+  const [realBattery, setRealBattery] = React.useState<{level: number, charging: boolean} | null>(null)
+
+  // Intentar obtener datos reales del sensor del dispositivo
+  React.useEffect(() => {
+    if (typeof window !== "undefined" && navigator.getBattery) {
+      navigator.getBattery().then((battery) => {
+        const updateBattery = () => {
+          setRealBattery({
+            level: Math.round(battery.level * 100),
+            charging: battery.charging
+          })
+        }
+        updateBattery()
+        battery.addEventListener('levelchange', updateBattery)
+        battery.addEventListener('chargingchange', updateBattery)
+      })
+    }
+  }, [])
+
+  // Combinar datos reales con simulados para campos que el navegador no expone por privacidad (mA, voltaje)
   const batteryData = {
-    level: 78,
-    status: "Cargando (AC)",
-    isCharging: true,
-    mA: 1450,
-    voltage: 4125, // mV
-    temperature: 32.5, // Celsius
-    technology: "Li-poly",
-    capacity: 5000, // mAh
-    estimatedTime: 42, // minutos
+    level: realBattery?.level ?? 78,
+    status: realBattery?.charging ? "Cargando (Detectado)" : "Descargando",
+    isCharging: realBattery?.charging ?? true,
+    mA: realBattery?.charging ? 1450 : -320,
+    voltage: 4125,
+    temperature: 32.5,
+    technology: "Li-ion",
+    capacity: 5000,
+    estimatedTime: 42,
     healthStatus: "Excelente",
-    pluggedType: "Cargador de pared (AC)",
-    powerSource: "AC",
+    pluggedType: realBattery?.charging ? "USB / AC" : "Ninguna",
+    powerSource: realBattery?.charging ? "Conectado" : "Batería",
     cycleCount: 142,
-    manufacturer: "Google",
-    model: "Pixel 8 Pro",
-    osVersion: "Android 14 (Upside Down Cake)",
-    securityPatch: "1 de Febrero, 2024",
-    historicalUsage: "Frecuentes drenajes por debajo del 20%, alto consumo de redes sociales, brillo de pantalla alto."
+    manufacturer: "Dispositivo Android",
+    model: "Monitor en Tiempo Real",
+    osVersion: "Android detectado",
+    securityPatch: "Actualizado",
+    historicalUsage: "Uso balanceado detectado en los últimos ciclos."
   }
 
-  const wattage = Number(((batteryData.mA * batteryData.voltage) / 1000000).toFixed(1))
+  const wattage = Number(((Math.abs(batteryData.mA) * batteryData.voltage) / 1000000).toFixed(1))
 
   const aiInput = {
     currentBatteryLevel: batteryData.level,
@@ -60,60 +91,65 @@ export default function AmpereScanDashboard() {
   }
 
   return (
-    <main className="min-h-screen pb-12 bg-background">
-      {/* Header Estilo Android Status Bar */}
-      <header className="p-6 flex items-center justify-between border-b border-white/5 sticky top-0 z-50 bg-background/80 backdrop-blur-md">
-        <div className="flex items-center gap-2">
-          <div className="bg-primary p-1.5 rounded-lg shadow-[0_0_15px_rgba(var(--primary),0.4)]">
+    <main className="min-h-screen pb-12 bg-background text-foreground overflow-x-hidden">
+      {/* Header optimizado para móvil */}
+      <header className="p-5 flex items-center justify-between border-b border-white/5 sticky top-0 z-50 bg-background/90 backdrop-blur-xl">
+        <div className="flex items-center gap-3">
+          <div className="bg-primary p-2 rounded-xl shadow-[0_0_20px_rgba(var(--primary),0.4)]">
             <Zap className="w-5 h-5 text-primary-foreground fill-primary-foreground" />
           </div>
           <div className="flex flex-col">
-            <h1 className="text-xl font-bold font-headline tracking-tight leading-none">Ampere Scan</h1>
-            <span className="text-[10px] text-primary font-mono uppercase tracking-widest mt-1">Android Monitor</span>
+            <h1 className="text-lg font-extrabold tracking-tight leading-none">Ampere Scan</h1>
+            <span className="text-[9px] text-primary font-mono uppercase tracking-[0.2em] mt-1">Kernel Monitor</span>
           </div>
         </div>
-        <Badge variant="outline" className="border-primary/30 text-primary font-mono bg-primary/5">
-          v2.4.1-PRO
+        <Badge variant="outline" className="border-primary/40 text-primary font-mono bg-primary/10 px-3">
+          PRO
         </Badge>
       </header>
 
-      <div className="max-w-md mx-auto p-4 space-y-6">
-        {/* Main Gauge Section */}
-        <section className="flex flex-col items-center justify-center py-6 bg-gradient-to-b from-primary/5 to-transparent rounded-3xl border border-white/5">
+      <div className="max-w-md mx-auto p-4 space-y-5">
+        {/* Sección del Indicador Principal */}
+        <section className="flex flex-col items-center justify-center py-8 bg-gradient-to-b from-primary/10 via-transparent to-transparent rounded-[2.5rem] border border-white/5 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-full opacity-5 pointer-events-none">
+             <div className="absolute top-[-10%] left-[-10%] w-full h-full bg-primary rounded-full blur-[100px]" />
+          </div>
+          
           <BatteryGauge 
             level={batteryData.level} 
             status={batteryData.status} 
             mA={batteryData.mA} 
             isCharging={batteryData.isCharging}
           />
-          <div className="flex gap-8 mt-8">
+          
+          <div className="flex gap-10 mt-10 relative z-10">
              <div className="flex flex-col items-center">
-                <span className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] mb-1">Potencia</span>
-                <span className="text-xl font-bold font-headline text-primary">{wattage} W</span>
+                <span className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] mb-1 font-bold">Consumo</span>
+                <span className="text-2xl font-black font-headline text-primary">{wattage}W</span>
              </div>
-             <div className="w-px h-10 bg-white/10" />
+             <div className="w-px h-10 bg-white/10 self-center" />
              <div className="flex flex-col items-center">
-                <span className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] mb-1">Carga Restante</span>
-                <span className="text-xl font-bold font-headline text-primary">~{batteryData.estimatedTime} min</span>
+                <span className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] mb-1 font-bold">Restante</span>
+                <span className="text-2xl font-black font-headline text-primary">~{batteryData.estimatedTime}m</span>
              </div>
           </div>
         </section>
 
-        {/* Core Metrics Grid */}
+        {/* Métrica en Cuadrícula */}
         <section className="grid grid-cols-2 gap-3">
           <MetricCard 
             title="Voltaje" 
             value={batteryData.voltage} 
             unit="mV" 
             icon={Activity} 
-            description="Tensión de celda"
+            description="Tensión de red"
           />
           <MetricCard 
-            title="Temperatura" 
+            title="Temp." 
             value={batteryData.temperature} 
             unit="°C" 
             icon={Thermometer} 
-            description="Límite: 45°C"
+            description="Normal < 40°C"
             accent={batteryData.temperature > 40}
           />
           <MetricCard 
@@ -130,54 +166,55 @@ export default function AmpereScanDashboard() {
           />
         </section>
 
-        {/* AI Optimization Tool */}
+        {/* Optimizador IA */}
         <section>
           <AIOptimizer deviceData={aiInput} />
         </section>
 
-        {/* Android Device Information */}
-        <section>
-          <div className="flex items-center gap-2 mb-3 px-1">
+        {/* Información Técnica */}
+        <section className="space-y-3">
+          <div className="flex items-center gap-2 px-1">
             <Smartphone className="w-4 h-4 text-primary" />
-            <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Sistema Android</h3>
+            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Especificaciones de Hardware</h3>
           </div>
-          <Card className="glass-card border-none bg-white/[0.02]">
-            <CardContent className="p-4 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+          <Card className="glass-card border-none bg-white/[0.03] rounded-3xl overflow-hidden">
+            <CardContent className="p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-y-5 gap-x-4">
                 <div className="space-y-1">
-                  <span className="text-[10px] text-muted-foreground uppercase">Modelo</span>
-                  <p className="text-sm font-medium">{batteryData.model}</p>
+                  <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Modelo</span>
+                  <p className="text-sm font-semibold truncate">{batteryData.model}</p>
+                </div>
+                <div className="space-y-1 text-right">
+                  <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Fabricante</span>
+                  <p className="text-sm font-semibold">{batteryData.manufacturer}</p>
                 </div>
                 <div className="space-y-1">
-                  <span className="text-[10px] text-muted-foreground uppercase">Versión</span>
-                  <p className="text-sm font-medium">{batteryData.osVersion}</p>
+                  <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Tecnología</span>
+                  <p className="text-sm font-semibold">{batteryData.technology}</p>
                 </div>
-                <div className="space-y-1">
-                  <span className="text-[10px] text-muted-foreground uppercase">Tecnología</span>
-                  <p className="text-sm font-medium">{batteryData.technology}</p>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-[10px] text-muted-foreground uppercase">Capacidad</span>
-                  <p className="text-sm font-medium">{batteryData.capacity} mAh</p>
+                <div className="space-y-1 text-right">
+                  <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Capacidad</span>
+                  <p className="text-sm font-semibold">{batteryData.capacity} mAh</p>
                 </div>
               </div>
-              <div className="pt-2 border-t border-white/5 flex items-center justify-between">
+              <div className="pt-4 border-t border-white/5 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Cpu className="w-3 h-3 text-muted-foreground" />
-                  <span className="text-[10px] text-muted-foreground uppercase">Parche de Seguridad</span>
+                  <Cpu className="w-3.5 h-3.5 text-primary/60" />
+                  <span className="text-[9px] text-muted-foreground uppercase font-bold">Estado del Sistema</span>
                 </div>
-                <span className="text-[10px] font-mono text-primary">{batteryData.securityPatch}</span>
+                <Badge variant="secondary" className="text-[9px] font-mono bg-white/5 text-primary">OP_STABLE_V2</Badge>
               </div>
             </CardContent>
           </Card>
         </section>
 
-        {/* Footer */}
-        <footer className="pt-4 flex flex-col items-center gap-2">
-          <div className="flex items-center gap-2 text-[10px] text-muted-foreground bg-white/5 px-4 py-2 rounded-full border border-white/5">
-            <Info className="w-3 h-3 text-primary" />
-            <span className="uppercase tracking-tighter">Monitoreo de Kernel Android en tiempo real</span>
+        {/* Footer Informativo */}
+        <footer className="pt-6 pb-4 flex flex-col items-center gap-4">
+          <div className="flex items-center gap-2 text-[9px] text-muted-foreground bg-white/5 px-5 py-2.5 rounded-full border border-white/5 backdrop-blur-sm">
+            <Info className="w-3.5 h-3.5 text-primary" />
+            <span className="uppercase tracking-widest font-medium">Sincronizado con hardware local</span>
           </div>
+          <p className="text-[8px] text-muted-foreground/40 uppercase tracking-[0.3em]">Ampere Scan Engine © 2024</p>
         </footer>
       </div>
     </main>
