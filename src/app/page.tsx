@@ -75,13 +75,17 @@ export default function AmpereScanDashboard() {
     }
   }, [])
 
-  // Combinar datos reales con simulados para campos que el navegador no expone
+  // Cálculo dinámico del voltaje (Simulación realista basada en curva de descarga Li-ion)
+  // Una celda Li-ion suele ir de ~3.4V (0%) a 4.2V (100%)
+  const currentLevel = realBattery?.level ?? 78
+  const calculatedVoltage = Math.round(3400 + (currentLevel * 8)) // 3400mV a 4200mV
+
   const batteryData = {
-    level: realBattery?.level ?? 78,
+    level: currentLevel,
     status: realBattery?.charging ? "Cargando" : "Descargando",
     isCharging: realBattery?.charging ?? true,
     mA: realBattery?.charging ? 1450 : -320,
-    voltage: 4125,
+    voltage: calculatedVoltage,
     temperature: 32.5,
     technology: "Li-ion",
     capacity: 5000,
@@ -174,7 +178,7 @@ export default function AmpereScanDashboard() {
             value={batteryData.voltage} 
             unit="mV" 
             icon={<Activity className="w-4 h-4" />} 
-            description="Tensión de red"
+            description="Tensión batería"
           />
           <MetricCard 
             title="Temp." 
