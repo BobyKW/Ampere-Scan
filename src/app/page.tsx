@@ -33,28 +33,52 @@ declare global {
 
 export default function AmpereScanDashboard() {
   const [realBattery, setRealBattery] = React.useState<{level: number, charging: boolean} | null>(null)
+  const [deviceInfo, setDeviceInfo] = React.useState({ model: "Android Device", os: "Android", manufacturer: "Google / Samsung" })
 
-  // Intentar obtener datos reales del sensor del dispositivo
+  // Intentar obtener datos reales del sensor del dispositivo y del hardware
   React.useEffect(() => {
-    if (typeof window !== "undefined" && navigator.getBattery) {
-      navigator.getBattery().then((battery) => {
-        const updateBattery = () => {
-          setRealBattery({
-            level: Math.round(battery.level * 100),
-            charging: battery.charging
-          })
+    if (typeof window !== "undefined") {
+      // API de Batería
+      if (navigator.getBattery) {
+        navigator.getBattery().then((battery) => {
+          const updateBattery = () => {
+            setRealBattery({
+              level: Math.round(battery.level * 100),
+              charging: battery.charging
+            })
+          }
+          updateBattery()
+          battery.addEventListener('levelchange', updateBattery)
+          battery.addEventListener('chargingchange', updateBattery)
+        })
+      }
+
+      // Detección de Modelo y OS (Android)
+      const ua = navigator.userAgent
+      let model = "Generic Android"
+      let os = "Android OS"
+      let manufacturer = "Desconocido"
+
+      if (/Android/i.test(ua)) {
+        const match = ua.match(/Android\s([0-9\.]+);?\s?([^;)]+)/)
+        if (match) {
+          os = `Android ${match[1]}`
+          model = match[2].trim()
+          // Intento básico de fabricante
+          if (model.toLowerCase().includes("pixel")) manufacturer = "Google"
+          else if (model.toLowerCase().includes("sm-") || model.toLowerCase().includes("samsung")) manufacturer = "Samsung"
+          else if (model.toLowerCase().includes("mi") || model.toLowerCase().includes("redmi")) manufacturer = "Xiaomi"
+          else manufacturer = "Android OEM"
         }
-        updateBattery()
-        battery.addEventListener('levelchange', updateBattery)
-        battery.addEventListener('chargingchange', updateBattery)
-      })
+      }
+      setDeviceInfo({ model, os, manufacturer })
     }
   }, [])
 
   // Combinar datos reales con simulados para campos que el navegador no expone
   const batteryData = {
     level: realBattery?.level ?? 78,
-    status: realBattery?.charging ? "Cargando (Detectado)" : "Descargando",
+    status: realBattery?.charging ? "Cargando" : "Descargando",
     isCharging: realBattery?.charging ?? true,
     mA: realBattery?.charging ? 1450 : -320,
     voltage: 4125,
@@ -66,10 +90,9 @@ export default function AmpereScanDashboard() {
     pluggedType: realBattery?.charging ? "USB / AC" : "Ninguna",
     powerSource: realBattery?.charging ? "Conectado" : "Batería",
     cycleCount: 142,
-    manufacturer: "Dispositivo Android",
-    model: "Monitor en Tiempo Real",
-    osVersion: "Android detectado",
-    securityPatch: "Actualizado",
+    manufacturer: deviceInfo.manufacturer,
+    model: deviceInfo.model,
+    osVersion: deviceInfo.os,
     historicalUsage: "Uso balanceado detectado en los últimos ciclos."
   }
 
@@ -202,8 +225,8 @@ export default function AmpereScanDashboard() {
                   <p className="text-sm font-semibold">{batteryData.technology}</p>
                 </div>
                 <div className="space-y-1 text-right">
-                  <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Capacidad</span>
-                  <p className="text-sm font-semibold">{batteryData.capacity} mAh</p>
+                  <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Versión OS</span>
+                  <p className="text-sm font-semibold">{batteryData.osVersion}</p>
                 </div>
               </div>
               <div className="pt-4 border-t border-white/5 flex items-center justify-between">
