@@ -11,7 +11,8 @@ import {
   ShieldCheck,
   Cpu,
   Usb,
-  AlertCircle
+  AlertCircle,
+  Monitor
 } from "lucide-react"
 import { BatteryGauge } from "@/components/battery-gauge"
 import { MetricCard } from "@/components/metric-card"
@@ -41,8 +42,13 @@ declare global {
 
 export default function AmpereScanDashboard() {
   const [realBattery, setRealBattery] = React.useState<{level: number, charging: boolean} | null>(null)
-  const [deviceInfo, setDeviceInfo] = React.useState({ model: "Android Device", os: "Android", manufacturer: "Android OEM" })
-  const [simulatedTemp, setSimulatedTemp] = React.useState(30.0)
+  const [deviceInfo, setDeviceInfo] = React.useState({ 
+    model: "Detectando...", 
+    os: "Sistema", 
+    manufacturer: "Genérico",
+    platform: "web"
+  })
+  const [simulatedTemp, setSimulatedTemp] = React.useState(25.0)
   const [mAOffset, setMAOffset] = React.useState(0)
 
   // Simulación de fluctuaciones de corriente para dar realismo al bus (jitter)
@@ -65,7 +71,7 @@ export default function AmpereScanDashboard() {
               charging: battery.charging
             })
             // Simulación reactiva: la temperatura sube ligeramente si carga
-            setSimulatedTemp(battery.charging ? 35.5 : 29.8)
+            setSimulatedTemp(battery.charging ? 32.5 : 24.8)
           }
           updateBattery()
           battery.addEventListener('levelchange', updateBattery)
@@ -73,13 +79,15 @@ export default function AmpereScanDashboard() {
         })
       }
 
-      // Detección de Modelo y OS real del dispositivo
+      // Detección de Modelo y OS real
       const ua = navigator.userAgent
-      let model = "Generic Android"
-      let os = "Android OS"
+      let model = "Dispositivo Web"
+      let os = "Desconocido"
       let manufacturer = "OEM"
+      let platform = "desktop"
 
       if (/Android/i.test(ua)) {
+        platform = "android"
         const match = ua.match(/Android\s([0-9\.]+);?\s?([^;)]+)/)
         if (match) {
           os = `Android ${match[1]}`
@@ -88,28 +96,37 @@ export default function AmpereScanDashboard() {
           
           if (ua.toLowerCase().includes("pixel")) manufacturer = "Google"
           else if (ua.toLowerCase().includes("samsung") || model.toLowerCase().includes("sm-")) manufacturer = "Samsung"
-          else if (ua.toLowerCase().includes("xiaomi") || model.toLowerCase().includes("mi")) manufacturer = "Xiaomi"
-          else if (ua.toLowerCase().includes("huawei")) manufacturer = "Huawei"
-          else if (ua.toLowerCase().includes("motorola")) manufacturer = "Motorola"
+          else if (ua.toLowerCase().includes("xiaomi")) manufacturer = "Xiaomi"
         }
+      } else if (/Windows/i.test(ua)) {
+        os = "Windows"
+        model = "PC / Laptop"
+        manufacturer = "Microsoft"
+      } else if (/Macintosh/i.test(ua)) {
+        os = "macOS"
+        model = "MacBook / iMac"
+        manufacturer = "Apple"
+      } else if (/Linux/i.test(ua)) {
+        os = "Linux"
+        model = "Computadora"
+        manufacturer = "Genérico"
       }
-      setDeviceInfo({ model, os, manufacturer })
+      
+      setDeviceInfo({ model, os, manufacturer, platform })
     }
   }, [])
 
   // Parámetros técnicos dinámicos
   const currentLevel = realBattery?.level ?? 0
-  const capacity = 5000 // mAh estándar de referencia para cálculos
+  const capacity = deviceInfo.platform === "android" ? 5000 : 45000 // mAh referencia (móvil vs pc)
   
-  // Amperaje estimado (Browsers no exponen mA real por seguridad)
-  const baseMA = realBattery?.charging ? 1200 : -250
+  const baseMA = realBattery?.charging ? (deviceInfo.platform === "android" ? 1200 : 3500) : -350
   const mA = currentLevel === 0 ? 0 : baseMA + mAOffset
   
-  // Voltaje calculado basado en curva de Li-ion (Verdad técnica: 3.4V a 4.2V)
+  // Voltaje calculado (Curva Li-ion: 3.4V a 4.2V)
   const calculatedVoltageMV = Math.round(3400 + (currentLevel * 8)) 
   const calculatedVoltageV = (calculatedVoltageMV / 1000).toFixed(2)
 
-  // Tiempo estimado dinámico (Verdad técnica: basada en consumo detectado)
   const calculateEstimatedTime = () => {
     const currentMA = Math.abs(mA)
     if (currentMA === 0) return 0
@@ -127,46 +144,29 @@ export default function AmpereScanDashboard() {
     status: realBattery?.charging ? "Cargando" : "Descargando",
     isCharging: realBattery?.charging ?? false,
     mA: mA,
-    voltage: calculatedVoltageMV, 
     voltageV: calculatedVoltageV, 
     temperature: simulatedTemp,
     technology: "Li-ion",
     capacity: capacity,
     estimatedTime: calculateEstimatedTime(),
-    healthStatus: "Sincronizado", // Indicador veraz de conexión con el sistema
-    pluggedType: realBattery?.charging ? (Math.abs(mA) > 500 ? "AC" : "USB") : "Ninguna",
-    powerSource: realBattery?.charging ? "Conectado" : "Batería",
-    cycleCount: "N/D", // Verdad: Dato protegido por Android para apps web
+    healthStatus: "Sincronizado",
+    powerSource: realBattery?.charging ? "Fuente Externa" : "Batería Interna",
+    cycleCount: "N/D", 
     manufacturer: deviceInfo.manufacturer,
     model: deviceInfo.model,
     osVersion: deviceInfo.os,
-    historicalUsage: "Análisis de patrones de carga activo."
+    historicalUsage: "Monitoreo activo de hardware."
   }
 
   const getSystemStatus = () => {
-    if (batteryData.temperature > 40) return { label: "TEMPERATURA_ALTA", variant: "destructive" as const }
+    if (batteryData.temperature > 45) return { label: "TEMPERATURA_ALTA", variant: "destructive" as const }
     if (batteryData.level < 15 && batteryData.level > 0) return { label: "BATERÍA_CRÍTICA", variant: "destructive" as const }
     if (batteryData.isCharging) return { label: "CARGA_ACTIVA", variant: "default" as const }
-    return { label: "SISTEMA_OPTIMIZADO", variant: "secondary" as const }
+    return { label: "SISTEMA_ESTABLE", variant: "secondary" as const }
   }
 
   const systemStatus = getSystemStatus()
   const wattage = Number(((Math.abs(batteryData.mA) * Number(batteryData.voltageV)) / 1000).toFixed(1))
-
-  const aiInput = {
-    currentBatteryLevel: batteryData.level,
-    isCharging: batteryData.isCharging,
-    batteryHealthStatus: batteryData.healthStatus,
-    batteryTechnology: batteryData.technology,
-    totalDesignCapacityMah: batteryData.capacity,
-    currentMilliAmp: batteryData.mA,
-    voltage: batteryData.voltage,
-    temperatureCelsius: batteryData.temperature,
-    deviceOsVersion: batteryData.osVersion,
-    deviceManufacturer: batteryData.manufacturer,
-    deviceModel: batteryData.model,
-    historicalUsageSummary: batteryData.historicalUsage
-  }
 
   return (
     <main className="min-h-screen pb-12 bg-background text-foreground overflow-x-hidden">
@@ -179,12 +179,12 @@ export default function AmpereScanDashboard() {
             <h1 className="text-lg font-extrabold tracking-tight leading-none text-white">Ampere Scan</h1>
             <div className="flex items-center gap-1.5 mt-1">
               <span className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_5px_green]" />
-              <span className="text-[9px] text-primary font-mono uppercase tracking-[0.2em]">Hardware Link</span>
+              <span className="text-[9px] text-primary font-mono uppercase tracking-[0.2em]">Hardware Live</span>
             </div>
           </div>
         </div>
         <Badge variant="outline" className="border-primary/40 text-primary font-mono bg-primary/10 px-3 py-1">
-          ANDROID PRO
+          {deviceInfo.platform === 'android' ? 'ANDROID LINK' : 'DESKTOP LINK'}
         </Badge>
       </header>
 
@@ -216,21 +216,21 @@ export default function AmpereScanDashboard() {
             value={batteryData.voltageV} 
             unit="V" 
             icon={<Activity className="w-4 h-4" />} 
-            description="Medición de celda"
+            description="Medición de celda (est.)"
           />
           <MetricCard 
             title="Temp." 
             value={batteryData.temperature.toFixed(1)} 
             unit="°C" 
             icon={<Thermometer className="w-4 h-4" />} 
-            description="Estado térmico"
+            description="Sensor térmico (est.)"
             accent={batteryData.temperature > 40}
           />
           <MetricCard 
             title="Fuente" 
             value={batteryData.powerSource} 
             icon={<Usb className="w-4 h-4" />} 
-            description={batteryData.isCharging ? `Vía ${batteryData.pluggedType}` : "En Batería"}
+            description={batteryData.isCharging ? "Suministro detectado" : "Descarga interna"}
           />
           <TooltipProvider>
             <Tooltip>
@@ -245,20 +245,33 @@ export default function AmpereScanDashboard() {
                 </div>
               </TooltipTrigger>
               <TooltipContent className="bg-card border-white/10 text-[10px] max-w-[200px]">
-                Android restringe el acceso al contador de ciclos físico por seguridad en aplicaciones web.
+                Los navegadores restringen el acceso al contador físico de ciclos por razones de privacidad.
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </section>
 
         <section>
-          <AIOptimizer deviceData={aiInput} />
+          <AIOptimizer deviceData={{
+            currentBatteryLevel: batteryData.level,
+            isCharging: batteryData.isCharging,
+            batteryHealthStatus: batteryData.healthStatus,
+            batteryTechnology: batteryData.technology,
+            totalDesignCapacityMah: batteryData.capacity,
+            currentMilliAmp: batteryData.mA,
+            voltage: Math.round(Number(batteryData.voltageV) * 1000),
+            temperatureCelsius: batteryData.temperature,
+            deviceOsVersion: batteryData.osVersion,
+            deviceManufacturer: batteryData.manufacturer,
+            deviceModel: batteryData.model,
+            historicalUsageSummary: batteryData.historicalUsage
+          }} />
         </section>
 
         <section className="space-y-3">
           <div className="flex items-center gap-2 px-1">
-            <Smartphone className="w-4 h-4 text-primary" />
-            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Diagnóstico del Terminal</h3>
+            {deviceInfo.platform === 'android' ? <Smartphone className="w-4 h-4 text-primary" /> : <Monitor className="w-4 h-4 text-primary" />}
+            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Identidad del Terminal</h3>
           </div>
           <Card className="glass-card border-none bg-white/[0.02] rounded-3xl overflow-hidden shadow-inner">
             <CardContent className="p-5 space-y-4">
@@ -276,7 +289,7 @@ export default function AmpereScanDashboard() {
                   <p className="text-sm font-semibold text-white">{batteryData.technology}</p>
                 </div>
                 <div className="space-y-1 text-right">
-                  <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Versión OS</span>
+                  <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Sistema Operativo</span>
                   <p className="text-sm font-semibold text-white">{batteryData.osVersion}</p>
                 </div>
               </div>
@@ -307,3 +320,4 @@ export default function AmpereScanDashboard() {
     </main>
   )
 }
+
