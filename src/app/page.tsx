@@ -35,6 +35,7 @@ declare global {
 export default function AmpereScanDashboard() {
   const [realBattery, setRealBattery] = React.useState<{level: number, charging: boolean} | null>(null)
   const [deviceInfo, setDeviceInfo] = React.useState({ model: "Android Device", os: "Android", manufacturer: "Google / Samsung" })
+  const [simulatedTemp, setSimulatedTemp] = React.useState(31.2)
 
   // Intentar obtener datos reales del sensor del dispositivo y del hardware
   React.useEffect(() => {
@@ -47,6 +48,8 @@ export default function AmpereScanDashboard() {
               level: Math.round(battery.level * 100),
               charging: battery.charging
             })
+            // Simulación de temperatura: Más alta si está cargando
+            setSimulatedTemp(battery.charging ? 36.8 : 30.5)
           }
           updateBattery()
           battery.addEventListener('levelchange', updateBattery)
@@ -65,7 +68,6 @@ export default function AmpereScanDashboard() {
         if (match) {
           os = `Android ${match[1]}`
           model = match[2].trim()
-          // Intento básico de fabricante
           if (model.toLowerCase().includes("pixel")) manufacturer = "Google"
           else if (model.toLowerCase().includes("sm-") || model.toLowerCase().includes("samsung")) manufacturer = "Samsung"
           else if (model.toLowerCase().includes("mi") || model.toLowerCase().includes("redmi")) manufacturer = "Xiaomi"
@@ -78,7 +80,7 @@ export default function AmpereScanDashboard() {
 
   // Cálculo dinámico del voltaje (Simulación realista basada en curva de descarga Li-ion)
   const currentLevel = realBattery?.level ?? 78
-  const calculatedVoltageMV = Math.round(3400 + (currentLevel * 8)) // 3400mV a 4200mV
+  const calculatedVoltageMV = Math.round(3400 + (currentLevel * 8)) 
   const calculatedVoltageV = (calculatedVoltageMV / 1000).toFixed(2)
 
   const batteryData = {
@@ -86,9 +88,9 @@ export default function AmpereScanDashboard() {
     status: realBattery?.charging ? "Cargando" : "Descargando",
     isCharging: realBattery?.charging ?? true,
     mA: realBattery?.charging ? 1450 : -320,
-    voltage: calculatedVoltageMV, // Seguimos manteniendo mV internamente para el AI
-    voltageV: calculatedVoltageV, // Valor formateado en V para el UI
-    temperature: 32.5,
+    voltage: calculatedVoltageMV, 
+    voltageV: calculatedVoltageV, 
+    temperature: simulatedTemp,
     technology: "Li-ion",
     capacity: 5000,
     estimatedTime: 42,
@@ -102,7 +104,6 @@ export default function AmpereScanDashboard() {
     historicalUsage: "Uso balanceado detectado en los últimos ciclos."
   }
 
-  // Cálculo dinámico del estado del sistema
   const getSystemStatus = () => {
     if (batteryData.temperature > 40) return { label: "TEMPERATURA_ALTA", variant: "destructive" as const }
     if (batteryData.level < 15) return { label: "BATERÍA_CRÍTICA", variant: "destructive" as const }
@@ -130,7 +131,6 @@ export default function AmpereScanDashboard() {
 
   return (
     <main className="min-h-screen pb-12 bg-background text-foreground overflow-x-hidden">
-      {/* Header optimizado para móvil */}
       <header className="p-5 flex items-center justify-between border-b border-white/5 sticky top-0 z-50 bg-background/90 backdrop-blur-xl">
         <div className="flex items-center gap-3">
           <div className="bg-primary p-2 rounded-xl shadow-[0_0_20px_rgba(var(--primary),0.4)]">
@@ -147,7 +147,6 @@ export default function AmpereScanDashboard() {
       </header>
 
       <div className="max-w-md mx-auto p-4 space-y-5">
-        {/* Sección del Indicador Principal */}
         <section className="flex flex-col items-center justify-center py-8 bg-gradient-to-b from-primary/10 via-transparent to-transparent rounded-[2.5rem] border border-white/5 relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-full opacity-5 pointer-events-none">
              <div className="absolute top-[-10%] left-[-10%] w-full h-full bg-primary rounded-full blur-[100px]" />
@@ -173,7 +172,6 @@ export default function AmpereScanDashboard() {
           </div>
         </section>
 
-        {/* Métrica en Cuadrícula */}
         <section className="grid grid-cols-2 gap-3">
           <MetricCard 
             title="Voltaje" 
@@ -184,10 +182,10 @@ export default function AmpereScanDashboard() {
           />
           <MetricCard 
             title="Temp." 
-            value={batteryData.temperature} 
+            value={batteryData.temperature.toFixed(1)} 
             unit="°C" 
             icon={<Thermometer className="w-4 h-4" />} 
-            description="Normal < 40°C"
+            description={batteryData.isCharging ? "Carga térmica activa" : "Temperatura estable"}
             accent={batteryData.temperature > 40}
           />
           <MetricCard 
@@ -204,12 +202,10 @@ export default function AmpereScanDashboard() {
           />
         </section>
 
-        {/* Optimizador IA */}
         <section>
           <AIOptimizer deviceData={aiInput} />
         </section>
 
-        {/* Información Técnica */}
         <section className="space-y-3">
           <div className="flex items-center gap-2 px-1">
             <Smartphone className="w-4 h-4 text-primary" />
@@ -251,7 +247,6 @@ export default function AmpereScanDashboard() {
           </Card>
         </section>
 
-        {/* Footer Informativo */}
         <footer className="pt-6 pb-4 flex flex-col items-center gap-4">
           <div className="flex items-center gap-2 text-[9px] text-muted-foreground bg-white/5 px-5 py-2.5 rounded-full border border-white/5 backdrop-blur-sm">
             <Info className="w-3.5 h-3.5 text-primary" />
