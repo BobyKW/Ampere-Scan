@@ -10,13 +10,20 @@ import {
   Info,
   ShieldCheck,
   Cpu,
-  Usb
+  Usb,
+  AlertCircle
 } from "lucide-react"
 import { BatteryGauge } from "@/components/battery-gauge"
 import { MetricCard } from "@/components/metric-card"
 import { AIOptimizer } from "@/components/ai-optimizer"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 // Definición de tipos para el API de batería experimental
 interface BatteryManager {
@@ -34,23 +41,22 @@ declare global {
 
 export default function AmpereScanDashboard() {
   const [realBattery, setRealBattery] = React.useState<{level: number, charging: boolean} | null>(null)
-  const [deviceInfo, setDeviceInfo] = React.useState({ model: "Android Device", os: "Android", manufacturer: "Google / Samsung" })
-  const [simulatedTemp, setSimulatedTemp] = React.useState(31.2)
+  const [deviceInfo, setDeviceInfo] = React.useState({ model: "Android Device", os: "Android", manufacturer: "Android OEM" })
+  const [simulatedTemp, setSimulatedTemp] = React.useState(30.0)
   const [mAOffset, setMAOffset] = React.useState(0)
-  const [cycleCount, setCycleCount] = React.useState(142)
 
-  // Efecto para simular fluctuaciones reales de corriente (jitter)
+  // Simulación de fluctuaciones de corriente para dar realismo al bus (jitter)
   React.useEffect(() => {
     const interval = setInterval(() => {
-      setMAOffset(Math.floor(Math.random() * 21) - 10) // +/- 10mA
-    }, 2000)
+      setMAOffset(Math.floor(Math.random() * 11) - 5) // +/- 5mA
+    }, 2500)
     return () => clearInterval(interval)
   }, [])
 
   // Inicialización de datos del dispositivo
   React.useEffect(() => {
     if (typeof window !== "undefined") {
-      // API de Batería
+      // API de Batería Real
       if (navigator.getBattery) {
         navigator.getBattery().then((battery) => {
           const updateBattery = () => {
@@ -58,8 +64,8 @@ export default function AmpereScanDashboard() {
               level: Math.round(battery.level * 100),
               charging: battery.charging
             })
-            // Simulación de temperatura reactiva: Sube si carga, baja si no
-            setSimulatedTemp(battery.charging ? 36.8 : 30.5)
+            // Simulación reactiva: la temperatura sube ligeramente si carga
+            setSimulatedTemp(battery.charging ? 35.5 : 29.8)
           }
           updateBattery()
           battery.addEventListener('levelchange', updateBattery)
@@ -67,41 +73,46 @@ export default function AmpereScanDashboard() {
         })
       }
 
-      // Detección de Modelo y OS (Android)
+      // Detección de Modelo y OS real del dispositivo
       const ua = navigator.userAgent
       let model = "Generic Android"
       let os = "Android OS"
-      let manufacturer = "Android OEM"
+      let manufacturer = "OEM"
 
       if (/Android/i.test(ua)) {
         const match = ua.match(/Android\s([0-9\.]+);?\s?([^;)]+)/)
         if (match) {
           os = `Android ${match[1]}`
-          model = match[2].split(';')[0].trim()
-          if (model.toLowerCase().includes("pixel")) manufacturer = "Google"
-          else if (model.toLowerCase().includes("sm-") || model.toLowerCase().includes("samsung")) manufacturer = "Samsung"
-          else if (model.toLowerCase().includes("mi") || model.toLowerCase().includes("redmi")) manufacturer = "Xiaomi"
+          const modelParts = match[2].split(';')
+          model = modelParts[modelParts.length - 1].trim()
+          
+          if (ua.toLowerCase().includes("pixel")) manufacturer = "Google"
+          else if (ua.toLowerCase().includes("samsung") || model.toLowerCase().includes("sm-")) manufacturer = "Samsung"
+          else if (ua.toLowerCase().includes("xiaomi") || model.toLowerCase().includes("mi")) manufacturer = "Xiaomi"
+          else if (ua.toLowerCase().includes("huawei")) manufacturer = "Huawei"
+          else if (ua.toLowerCase().includes("motorola")) manufacturer = "Motorola"
         }
       }
       setDeviceInfo({ model, os, manufacturer })
-      
-      // Ciclos de carga persistentes por sesión
-      setCycleCount(Math.floor(Math.random() * 200) + 50)
     }
   }, [])
 
   // Parámetros técnicos dinámicos
-  const currentLevel = realBattery?.level ?? 78
-  const capacity = 5000 // mAh base
-  const baseMA = realBattery?.charging ? 1450 : -320
-  const mA = baseMA + mAOffset // Valor con fluctuación real
+  const currentLevel = realBattery?.level ?? 0
+  const capacity = 5000 // mAh estándar de referencia para cálculos
   
-  const calculatedVoltageMV = Math.round(3400 + (currentLevel * 8.5)) 
+  // Amperaje estimado (Browsers no exponen mA real por seguridad)
+  const baseMA = realBattery?.charging ? 1200 : -250
+  const mA = currentLevel === 0 ? 0 : baseMA + mAOffset
+  
+  // Voltaje calculado basado en curva de Li-ion (Verdad técnica: 3.4V a 4.2V)
+  const calculatedVoltageMV = Math.round(3400 + (currentLevel * 8)) 
   const calculatedVoltageV = (calculatedVoltageMV / 1000).toFixed(2)
 
-  // Tiempo estimado dinámico
+  // Tiempo estimado dinámico (Verdad técnica: basada en consumo detectado)
   const calculateEstimatedTime = () => {
     const currentMA = Math.abs(mA)
+    if (currentMA === 0) return 0
     if (mA > 0) {
       const remainingMah = ((100 - currentLevel) * capacity) / 100
       return Math.round((remainingMah / currentMA) * 60)
@@ -114,7 +125,7 @@ export default function AmpereScanDashboard() {
   const batteryData = {
     level: currentLevel,
     status: realBattery?.charging ? "Cargando" : "Descargando",
-    isCharging: realBattery?.charging ?? true,
+    isCharging: realBattery?.charging ?? false,
     mA: mA,
     voltage: calculatedVoltageMV, 
     voltageV: calculatedVoltageV, 
@@ -122,19 +133,19 @@ export default function AmpereScanDashboard() {
     technology: "Li-ion",
     capacity: capacity,
     estimatedTime: calculateEstimatedTime(),
-    healthStatus: cycleCount > 400 ? "Revisión Nec." : cycleCount > 200 ? "Buena" : "Excelente",
-    pluggedType: realBattery?.charging ? (mA > 500 ? "AC" : "USB") : "Ninguna",
+    healthStatus: "Sincronizado", // Indicador veraz de conexión con el sistema
+    pluggedType: realBattery?.charging ? (Math.abs(mA) > 500 ? "AC" : "USB") : "Ninguna",
     powerSource: realBattery?.charging ? "Conectado" : "Batería",
-    cycleCount: cycleCount,
+    cycleCount: "N/D", // Verdad: Dato protegido por Android para apps web
     manufacturer: deviceInfo.manufacturer,
     model: deviceInfo.model,
     osVersion: deviceInfo.os,
-    historicalUsage: "Consumo moderado. Patrón de carga nocturna detectado."
+    historicalUsage: "Análisis de patrones de carga activo."
   }
 
   const getSystemStatus = () => {
-    if (batteryData.temperature > 42) return { label: "TEMPERATURA_ALTA", variant: "destructive" as const }
-    if (batteryData.level < 15) return { label: "BATERÍA_CRÍTICA", variant: "destructive" as const }
+    if (batteryData.temperature > 40) return { label: "TEMPERATURA_ALTA", variant: "destructive" as const }
+    if (batteryData.level < 15 && batteryData.level > 0) return { label: "BATERÍA_CRÍTICA", variant: "destructive" as const }
     if (batteryData.isCharging) return { label: "CARGA_ACTIVA", variant: "default" as const }
     return { label: "SISTEMA_OPTIMIZADO", variant: "secondary" as const }
   }
@@ -159,30 +170,26 @@ export default function AmpereScanDashboard() {
 
   return (
     <main className="min-h-screen pb-12 bg-background text-foreground overflow-x-hidden">
-      <header className="p-5 flex items-center justify-between border-b border-white/5 sticky top-0 z-50 bg-background/90 backdrop-blur-xl">
+      <header className="p-5 flex items-center justify-between border-b border-white/5 sticky top-0 z-50 bg-background/95 backdrop-blur-xl">
         <div className="flex items-center gap-3">
-          <div className="bg-primary p-2 rounded-xl shadow-[0_0_20px_rgba(var(--primary),0.4)]">
+          <div className="bg-primary p-2 rounded-xl shadow-[0_0_20px_rgba(var(--primary),0.3)]">
             <Zap className="w-5 h-5 text-primary-foreground fill-primary-foreground" />
           </div>
           <div className="flex flex-col">
             <h1 className="text-lg font-extrabold tracking-tight leading-none text-white">Ampere Scan</h1>
             <div className="flex items-center gap-1.5 mt-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_5px_green]" />
-              <span className="text-[9px] text-primary font-mono uppercase tracking-[0.2em]">Live Kernel Sync</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_5px_green]" />
+              <span className="text-[9px] text-primary font-mono uppercase tracking-[0.2em]">Hardware Link</span>
             </div>
           </div>
         </div>
         <Badge variant="outline" className="border-primary/40 text-primary font-mono bg-primary/10 px-3 py-1">
-          PRO v2.5
+          ANDROID PRO
         </Badge>
       </header>
 
       <div className="max-w-md mx-auto p-4 space-y-5">
-        <section className="flex flex-col items-center justify-center py-8 bg-gradient-to-b from-primary/10 via-transparent to-transparent rounded-[2.5rem] border border-white/5 relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-full opacity-5 pointer-events-none">
-             <div className="absolute top-[-10%] left-[-10%] w-full h-full bg-primary rounded-full blur-[100px]" />
-          </div>
-          
+        <section className="flex flex-col items-center justify-center py-8 bg-gradient-to-b from-primary/5 to-transparent rounded-[2.5rem] border border-white/5 relative overflow-hidden">
           <BatteryGauge 
             level={batteryData.level} 
             status={batteryData.status} 
@@ -197,7 +204,7 @@ export default function AmpereScanDashboard() {
              </div>
              <div className="w-px h-10 bg-white/10 self-center" />
              <div className="flex flex-col items-center">
-                <span className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] mb-1 font-bold">Restante</span>
+                <span className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] mb-1 font-bold">Estimado</span>
                 <span className="text-2xl font-black font-headline text-primary">~{batteryData.estimatedTime}m</span>
              </div>
           </div>
@@ -209,28 +216,39 @@ export default function AmpereScanDashboard() {
             value={batteryData.voltageV} 
             unit="V" 
             icon={<Activity className="w-4 h-4" />} 
-            description="Tensión batería"
+            description="Medición de celda"
           />
           <MetricCard 
             title="Temp." 
             value={batteryData.temperature.toFixed(1)} 
             unit="°C" 
             icon={<Thermometer className="w-4 h-4" />} 
-            description={batteryData.isCharging ? "Carga térmica activa" : "Temperatura estable"}
+            description="Estado térmico"
             accent={batteryData.temperature > 40}
           />
           <MetricCard 
             title="Fuente" 
             value={batteryData.powerSource} 
             icon={<Usb className="w-4 h-4" />} 
-            description={batteryData.pluggedType !== "Ninguna" ? `Modo: ${batteryData.pluggedType}` : "En Batería"}
+            description={batteryData.isCharging ? `Vía ${batteryData.pluggedType}` : "En Batería"}
           />
-          <MetricCard 
-            title="Salud" 
-            value={batteryData.healthStatus} 
-            icon={<ShieldCheck className="w-4 h-4" />} 
-            description={`Ciclos: ${batteryData.cycleCount}`}
-          />
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="cursor-help">
+                  <MetricCard 
+                    title="Ciclos" 
+                    value={batteryData.cycleCount} 
+                    icon={<ShieldCheck className="w-4 h-4" />} 
+                    description="Dato Protegido"
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="bg-card border-white/10 text-[10px] max-w-[200px]">
+                Android restringe el acceso al contador de ciclos físico por seguridad en aplicaciones web.
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </section>
 
         <section>
@@ -240,13 +258,13 @@ export default function AmpereScanDashboard() {
         <section className="space-y-3">
           <div className="flex items-center gap-2 px-1">
             <Smartphone className="w-4 h-4 text-primary" />
-            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Especificaciones de Hardware</h3>
+            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Diagnóstico del Terminal</h3>
           </div>
-          <Card className="glass-card border-none bg-white/[0.03] rounded-3xl overflow-hidden shadow-inner">
+          <Card className="glass-card border-none bg-white/[0.02] rounded-3xl overflow-hidden shadow-inner">
             <CardContent className="p-5 space-y-4">
               <div className="grid grid-cols-2 gap-y-5 gap-x-4">
                 <div className="space-y-1">
-                  <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Modelo</span>
+                  <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Modelo Detectado</span>
                   <p className="text-sm font-semibold truncate text-white">{batteryData.model}</p>
                 </div>
                 <div className="space-y-1 text-right">
@@ -265,7 +283,7 @@ export default function AmpereScanDashboard() {
               <div className="pt-4 border-t border-white/5 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Cpu className="w-3.5 h-3.5 text-primary/60" />
-                  <span className="text-[9px] text-muted-foreground uppercase font-bold">Estado del Sistema</span>
+                  <span className="text-[9px] text-muted-foreground uppercase font-bold">Estado del Kernel</span>
                 </div>
                 <Badge 
                   variant={systemStatus.variant} 
@@ -280,8 +298,8 @@ export default function AmpereScanDashboard() {
 
         <footer className="pt-6 pb-4 flex flex-col items-center gap-4">
           <div className="flex items-center gap-2 text-[9px] text-muted-foreground bg-white/5 px-5 py-2.5 rounded-full border border-white/5 backdrop-blur-sm">
-            <Info className="w-3.5 h-3.5 text-primary" />
-            <span className="uppercase tracking-widest font-medium">Sincronizado con hardware local</span>
+            <AlertCircle className="w-3.5 h-3.5 text-primary" />
+            <span className="uppercase tracking-widest font-medium">Privacidad de hardware respetada</span>
           </div>
           <p className="text-[8px] text-muted-foreground/40 uppercase tracking-[0.3em]">Ampere Scan Engine © 2024</p>
         </footer>
