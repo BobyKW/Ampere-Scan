@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -76,16 +77,17 @@ export default function AmpereScanDashboard() {
   }, [])
 
   // Cálculo dinámico del voltaje (Simulación realista basada en curva de descarga Li-ion)
-  // Una celda Li-ion suele ir de ~3.4V (0%) a 4.2V (100%)
   const currentLevel = realBattery?.level ?? 78
-  const calculatedVoltage = Math.round(3400 + (currentLevel * 8)) // 3400mV a 4200mV
+  const calculatedVoltageMV = Math.round(3400 + (currentLevel * 8)) // 3400mV a 4200mV
+  const calculatedVoltageV = (calculatedVoltageMV / 1000).toFixed(2)
 
   const batteryData = {
     level: currentLevel,
     status: realBattery?.charging ? "Cargando" : "Descargando",
     isCharging: realBattery?.charging ?? true,
     mA: realBattery?.charging ? 1450 : -320,
-    voltage: calculatedVoltage,
+    voltage: calculatedVoltageMV, // Seguimos manteniendo mV internamente para el AI
+    voltageV: calculatedVoltageV, // Valor formateado en V para el UI
     temperature: 32.5,
     technology: "Li-ion",
     capacity: 5000,
@@ -175,8 +177,8 @@ export default function AmpereScanDashboard() {
         <section className="grid grid-cols-2 gap-3">
           <MetricCard 
             title="Voltaje" 
-            value={batteryData.voltage} 
-            unit="mV" 
+            value={batteryData.voltageV} 
+            unit="V" 
             icon={<Activity className="w-4 h-4" />} 
             description="Tensión batería"
           />
