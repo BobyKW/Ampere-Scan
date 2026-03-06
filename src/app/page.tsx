@@ -87,11 +87,12 @@ export default function AmpereScanDashboard() {
     localStorage.setItem('ampere_theme', theme)
   }, [theme])
 
-  // Simulación de fluctuaciones de corriente (Jitter) para realismo visual
+  // Simulación de fluctuaciones de corriente (Jitter) para realismo visual y reactividad
   React.useEffect(() => {
     const interval = setInterval(() => {
-      setMAOffset(Math.floor(Math.random() * 11) - 5)
-    }, 2500)
+      // Variación dinámica del offset para que el tiempo restante también fluctúe ligeramente
+      setMAOffset(Math.floor(Math.random() * 21) - 10)
+    }, 2000)
     return () => clearInterval(interval)
   }, [])
 
@@ -104,8 +105,8 @@ export default function AmpereScanDashboard() {
             setRealBattery(battery)
             // Ajustar temperatura según carga de forma realista
             setSimulatedTemp(prev => {
-              const targetTemp = battery.charging ? 34.5 : 26.8
-              return prev + (targetTemp - prev) * 0.1
+              const targetTemp = battery.charging ? 35.5 : 27.2
+              return prev + (targetTemp - prev) * 0.05
             })
           }
           updateBattery()
@@ -144,29 +145,42 @@ export default function AmpereScanDashboard() {
     }
   }, [])
 
-  const currentLevel = realBattery ? Math.round(realBattery.level * 100) : 0
-  const capacity = deviceInfo.platform === "android" ? 5000 : 45000 // mAh referencia
-  const baseMA = realBattery?.charging ? (deviceInfo.platform === "android" ? 1800 : 4500) : -450
-  const currentMA = currentLevel === 0 ? 0 : baseMA + mAOffset
-  const calculatedVoltageV = (3.4 + (currentLevel / 100) * 0.8).toFixed(2)
+  const currentLevel = realBattery ? Math.round(realBattery.level * 100) : 50
+  const isCharging = realBattery?.charging ?? false
+  
+  // Capacidad de referencia realista
+  const capacity = deviceInfo.platform === "android" ? 5000 : 45000 
+  
+  // Amperaje base dinámico: Si está cargando y la batería está baja, carga más rápido.
+  // Si está descargando, el consumo varía según el nivel (más brillo/CPU suele ser habitual a mayor carga)
+  const baseMA = isCharging 
+    ? (deviceInfo.platform === "android" ? 2200 - (currentLevel * 10) : 5000 - (currentLevel * 20)) 
+    : -(350 + (currentLevel * 2))
+
+  const currentMA = currentLevel === 0 ? 0 : Math.round(baseMA + mAOffset)
+  const calculatedVoltageV = (3.4 + (currentLevel / 100) * 0.82).toFixed(2)
 
   const calculateEstimatedTime = () => {
     if (!realBattery) return 0
-    // Priorizar el tiempo real del sistema operativo
-    if (realBattery.charging && realBattery.chargingTime !== Infinity && realBattery.chargingTime > 0) {
+    
+    // 1. Intentar obtener el tiempo real del sistema operativo (más preciso si está disponible)
+    if (isCharging && realBattery.chargingTime !== Infinity && realBattery.chargingTime > 0) {
       return Math.round(realBattery.chargingTime / 60)
     }
-    if (!realBattery.charging && realBattery.dischargingTime !== Infinity && realBattery.dischargingTime > 0) {
+    if (!isCharging && realBattery.dischargingTime !== Infinity && realBattery.dischargingTime > 0) {
       return Math.round(realBattery.dischargingTime / 60)
     }
     
-    // Fallback matemático exacto basado en capacidad
+    // 2. Fallback: Cálculo matemático exacto basado en mA actuales si el sistema no da el dato
     const absMA = Math.abs(currentMA)
-    if (absMA === 0) return 0
-    if (realBattery.charging) {
+    if (absMA < 10) return 0 // Evitar división por cero o valores insignificantes
+    
+    if (isCharging) {
+      // Cuánto mAh faltan para el 100%
       const remainingMah = ((100 - currentLevel) * capacity) / 100
       return Math.round((remainingMah / absMA) * 60)
     } else {
+      // Cuánto mAh quedan hasta el 0%
       const availableMah = (currentLevel * capacity) / 100
       return Math.round((availableMah / absMA) * 60)
     }
@@ -178,7 +192,7 @@ export default function AmpereScanDashboard() {
   const getSystemStatus = () => {
     if (simulatedTemp > 42) return { label: "TEMPERATURA_ALTA", variant: "destructive" as const }
     if (currentLevel < 15 && currentLevel > 0) return { label: "BATERÍA_CRÍTICA", variant: "destructive" as const }
-    if (realBattery?.charging) return { label: "CARGA_ACTIVA", variant: "default" as const }
+    if (isCharging) return { label: "CARGA_ACTIVA", variant: "default" as const }
     return { label: "SISTEMA_OPTIMIZADO", variant: "secondary" as const }
   }
 
@@ -240,7 +254,7 @@ export default function AmpereScanDashboard() {
                 <div className="p-4 bg-primary/10 rounded-2xl border border-primary/20">
                   <h4 className="text-[10px] font-bold text-primary mb-2 uppercase tracking-widest">Estado del Motor</h4>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium">V 2.4.0 Kernel</span>
+                    <span className="text-xs font-medium">V 2.5.1 Kernel</span>
                     <Badge variant="secondary" className="bg-primary/20 text-primary text-[10px]">ACTIVO</Badge>
                   </div>
                 </div>
@@ -254,15 +268,15 @@ export default function AmpereScanDashboard() {
         <section className="flex flex-col items-center justify-center py-8 bg-gradient-to-b from-primary/5 to-transparent rounded-[2.5rem] border border-white/5 relative overflow-hidden">
           <BatteryGauge 
             level={currentLevel} 
-            status={realBattery?.charging ? "Cargando" : "Descargando"} 
+            status={isCharging ? "Cargando" : "Descargando"} 
             mA={currentMA} 
-            isCharging={realBattery?.charging ?? false}
+            isCharging={isCharging}
           />
           
           <div className="flex gap-10 mt-10 relative z-10">
              <div className="flex flex-col items-center">
                 <span className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] mb-1 font-bold">
-                  {realBattery?.charging ? "Añadiendo" : "Consumo"}
+                  {isCharging ? "Añadiendo" : "Consumo"}
                 </span>
                 <span className="text-2xl font-black font-headline text-primary">{currentWattage}W</span>
              </div>
@@ -277,7 +291,7 @@ export default function AmpereScanDashboard() {
         <section className="grid grid-cols-2 gap-3">
           <MetricCard title="Voltaje" value={calculatedVoltageV} unit="V" icon={<Activity className="w-4 h-4" />} description="Célula (est.)" />
           <MetricCard title="Temperatura" value={simulatedTemp.toFixed(1)} unit="°C" icon={<Thermometer className="w-4 h-4" />} description="Sensor (est.)" accent={simulatedTemp > 40} />
-          <MetricCard title="Fuente" value={realBattery?.charging ? "Red AC" : "Batería"} icon={<Usb className="w-4 h-4" />} description={realBattery?.charging ? "Conectado" : "Desconectado"} />
+          <MetricCard title="Fuente" value={isCharging ? "Red AC" : "Batería"} icon={<Usb className="w-4 h-4" />} description={isCharging ? "Conectado" : "Desconectado"} />
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -295,7 +309,7 @@ export default function AmpereScanDashboard() {
         <section>
           <AIOptimizer deviceData={{
             currentBatteryLevel: currentLevel,
-            isCharging: realBattery?.charging ?? false,
+            isCharging: isCharging,
             batteryHealthStatus: "Sincronizado",
             batteryTechnology: "Li-ion",
             totalDesignCapacityMah: capacity,
