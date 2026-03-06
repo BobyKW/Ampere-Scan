@@ -7,7 +7,6 @@ import {
   Thermometer, 
   Activity, 
   Smartphone, 
-  Info,
   ShieldCheck,
   Cpu,
   Usb,
@@ -91,7 +90,7 @@ export default function AmpereScanDashboard() {
   // Simulación de fluctuaciones de corriente para realismo visual
   React.useEffect(() => {
     const interval = setInterval(() => {
-      setMAOffset(Math.floor(Math.random() * 21) - 10)
+      setMAOffset(Math.floor(Math.random() * 41) - 20)
     }, 2000)
     return () => clearInterval(interval)
   }, [])
@@ -163,17 +162,22 @@ export default function AmpereScanDashboard() {
   const calculateEstimatedTime = () => {
     if (!realBattery) return 0
     
+    // Si la batería está llena y cargando, o vacía y descargando, el tiempo es 0
+    if (isCharging && currentLevel >= 100) return 0
+    if (!isCharging && currentLevel <= 0) return 0
+
     // Prioridad 1: Datos directos del sistema operativo (lo más real)
+    // Nota: chargingTime/dischargingTime están en SEGUNDOS según la especificación W3C
     if (isCharging && realBattery.chargingTime !== Infinity && realBattery.chargingTime > 0) {
-      return Math.round(realBattery.chargingTime / 60)
+      return Math.ceil(realBattery.chargingTime / 60)
     }
     if (!isCharging && realBattery.dischargingTime !== Infinity && realBattery.dischargingTime > 0) {
-      return Math.round(realBattery.dischargingTime / 60)
+      return Math.ceil(realBattery.dischargingTime / 60)
     }
     
-    // Prioridad 2: Cálculo basado en amperaje si el SO no da el dato
-    const absMA = Math.abs(currentMA)
-    if (absMA < 10) return 0
+    // Prioridad 2: Cálculo matemático de respaldo (Safe-Amperage Engine)
+    // Usamos un mínimo de 100mA para el cálculo de tiempo para evitar divisiones infinitas o erráticas
+    const absMA = Math.max(Math.abs(currentMA), 100)
     
     if (isCharging) {
       const remainingMah = ((100 - currentLevel) * capacity) / 100
