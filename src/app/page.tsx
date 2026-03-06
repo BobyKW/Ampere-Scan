@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -41,13 +42,13 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 
 // Definición de tipos para el API de batería experimental
-interface BatteryManager {
+interface BatteryManager extends EventTarget {
   level: number;
   charging: boolean;
   chargingTime: number;
   dischargingTime: number;
-  addEventListener(type: string, listener: () => void): void;
-  removeEventListener(type: string, listener: () => void): void;
+  onlevelchange: ((this: BatteryManager, ev: Event) => any) | null;
+  onchargingchange: ((this: BatteryManager, ev: Event) => any) | null;
 }
 
 declare global {
@@ -86,7 +87,7 @@ export default function AmpereScanDashboard() {
     localStorage.setItem('ampere_theme', theme)
   }, [theme])
 
-  // Simulación de fluctuaciones de corriente
+  // Simulación de fluctuaciones de corriente (Jitter) para realismo visual
   React.useEffect(() => {
     const interval = setInterval(() => {
       setMAOffset(Math.floor(Math.random() * 11) - 5)
@@ -100,15 +101,12 @@ export default function AmpereScanDashboard() {
       if (navigator.getBattery) {
         navigator.getBattery().then((battery) => {
           const updateBattery = () => {
-            setRealBattery({
-              level: battery.level,
-              charging: battery.charging,
-              chargingTime: battery.chargingTime,
-              dischargingTime: battery.dischargingTime,
-              addEventListener: battery.addEventListener,
-              removeEventListener: battery.removeEventListener
-            } as BatteryManager)
-            setSimulatedTemp(battery.charging ? 34.2 : 26.5)
+            setRealBattery(battery)
+            // Ajustar temperatura según carga de forma realista
+            setSimulatedTemp(prev => {
+              const targetTemp = battery.charging ? 34.5 : 26.8
+              return prev + (targetTemp - prev) * 0.1
+            })
           }
           updateBattery()
           battery.addEventListener('levelchange', updateBattery)
@@ -147,15 +145,22 @@ export default function AmpereScanDashboard() {
   }, [])
 
   const currentLevel = realBattery ? Math.round(realBattery.level * 100) : 0
-  const capacity = deviceInfo.platform === "android" ? 5000 : 45000
+  const capacity = deviceInfo.platform === "android" ? 5000 : 45000 // mAh referencia
   const baseMA = realBattery?.charging ? (deviceInfo.platform === "android" ? 1800 : 4500) : -450
   const currentMA = currentLevel === 0 ? 0 : baseMA + mAOffset
   const calculatedVoltageV = (3.4 + (currentLevel / 100) * 0.8).toFixed(2)
 
   const calculateEstimatedTime = () => {
     if (!realBattery) return 0
-    if (realBattery.charging && realBattery.chargingTime !== Infinity) return Math.round(realBattery.chargingTime / 60)
-    if (!realBattery.charging && realBattery.dischargingTime !== Infinity) return Math.round(realBattery.dischargingTime / 60)
+    // Priorizar el tiempo real del sistema operativo
+    if (realBattery.charging && realBattery.chargingTime !== Infinity && realBattery.chargingTime > 0) {
+      return Math.round(realBattery.chargingTime / 60)
+    }
+    if (!realBattery.charging && realBattery.dischargingTime !== Infinity && realBattery.dischargingTime > 0) {
+      return Math.round(realBattery.dischargingTime / 60)
+    }
+    
+    // Fallback matemático exacto basado en capacidad
     const absMA = Math.abs(currentMA)
     if (absMA === 0) return 0
     if (realBattery.charging) {
@@ -168,10 +173,10 @@ export default function AmpereScanDashboard() {
   }
 
   const estimatedMinutes = calculateEstimatedTime()
-  const wattage = Number(((Math.abs(currentMA) * Number(calculatedVoltageV)) / 1000).toFixed(1))
+  const currentWattage = Number(((Math.abs(currentMA) * Number(calculatedVoltageV)) / 1000).toFixed(1))
 
   const getSystemStatus = () => {
-    if (simulatedTemp > 45) return { label: "TEMPERATURA_ALTA", variant: "destructive" as const }
+    if (simulatedTemp > 42) return { label: "TEMPERATURA_ALTA", variant: "destructive" as const }
     if (currentLevel < 15 && currentLevel > 0) return { label: "BATERÍA_CRÍTICA", variant: "destructive" as const }
     if (realBattery?.charging) return { label: "CARGA_ACTIVA", variant: "default" as const }
     return { label: "SISTEMA_OPTIMIZADO", variant: "secondary" as const }
@@ -259,19 +264,19 @@ export default function AmpereScanDashboard() {
                 <span className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] mb-1 font-bold">
                   {realBattery?.charging ? "Añadiendo" : "Consumo"}
                 </span>
-                <span className="text-2xl font-black font-headline text-primary">{wattage}W</span>
+                <span className="text-2xl font-black font-headline text-primary">{currentWattage}W</span>
              </div>
              <div className="w-px h-10 bg-white/10 self-center" />
              <div className="flex flex-col items-center">
-                <span className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] mb-1 font-bold">Estimado</span>
+                <span className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] mb-1 font-bold">Restante</span>
                 <span className="text-2xl font-black font-headline text-primary">~{estimatedMinutes}m</span>
              </div>
           </div>
         </section>
 
         <section className="grid grid-cols-2 gap-3">
-          <MetricCard title="Voltaje" value={calculatedVoltageV} unit="V" icon={<Activity className="w-4 h-4" />} description="Medición de celda (est.)" />
-          <MetricCard title="Temp." value={simulatedTemp.toFixed(1)} unit="°C" icon={<Thermometer className="w-4 h-4" />} description="Sensor térmico (est.)" accent={simulatedTemp > 40} />
+          <MetricCard title="Voltaje" value={calculatedVoltageV} unit="V" icon={<Activity className="w-4 h-4" />} description="Célula (est.)" />
+          <MetricCard title="Temperatura" value={simulatedTemp.toFixed(1)} unit="°C" icon={<Thermometer className="w-4 h-4" />} description="Sensor (est.)" accent={simulatedTemp > 40} />
           <MetricCard title="Fuente" value={realBattery?.charging ? "Red AC" : "Batería"} icon={<Usb className="w-4 h-4" />} description={realBattery?.charging ? "Conectado" : "Desconectado"} />
           <TooltipProvider>
             <Tooltip>
@@ -300,7 +305,7 @@ export default function AmpereScanDashboard() {
             deviceOsVersion: deviceInfo.os,
             deviceManufacturer: deviceInfo.manufacturer,
             deviceModel: deviceInfo.model,
-            historicalUsageSummary: "Monitoreo activo de hardware a través de Web API."
+            historicalUsageSummary: "Diagnóstico dinámico basado en API de hardware del sistema."
           }} />
         </section>
 
@@ -318,15 +323,15 @@ export default function AmpereScanDashboard() {
                 </div>
                 <div className="space-y-1 text-right">
                   <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Fabricante</span>
-                  <p className="text-sm font-semibold">{deviceInfo.manufacturer}</p>
+                  <p className="text-sm font-semibold truncate">{deviceInfo.manufacturer}</p>
                 </div>
                 <div className="space-y-1">
                   <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Tecnología</span>
-                  <p className="text-sm font-semibold">Li-ion / Li-poly</p>
+                  <p className="text-sm font-semibold">Ion Litio</p>
                 </div>
                 <div className="space-y-1 text-right">
                   <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Sistema Operativo</span>
-                  <p className="text-sm font-semibold">{deviceInfo.os}</p>
+                  <p className="text-sm font-semibold truncate">{deviceInfo.os}</p>
                 </div>
               </div>
               <div className="pt-4 border-t border-white/5 flex items-center justify-between">
