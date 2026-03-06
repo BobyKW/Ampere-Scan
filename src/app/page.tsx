@@ -68,6 +68,7 @@ export default function AmpereScanDashboard() {
   const [simulatedTemp, setSimulatedTemp] = React.useState(25.0)
   const [mAOffset, setMAOffset] = React.useState(0)
   const [theme, setTheme] = React.useState<'light' | 'dark'>('dark')
+  const [isLinking, setIsLinking] = React.useState(false)
 
   // Manejo de Temas
   React.useEffect(() => {
@@ -87,10 +88,9 @@ export default function AmpereScanDashboard() {
     localStorage.setItem('ampere_theme', theme)
   }, [theme])
 
-  // Simulación de fluctuaciones de corriente (Jitter) para realismo visual y reactividad
+  // Simulación de fluctuaciones de corriente para realismo visual
   React.useEffect(() => {
     const interval = setInterval(() => {
-      // Variación dinámica del offset para que el tiempo restante también fluctúe ligeramente
       setMAOffset(Math.floor(Math.random() * 21) - 10)
     }, 2000)
     return () => clearInterval(interval)
@@ -102,12 +102,13 @@ export default function AmpereScanDashboard() {
       if (navigator.getBattery) {
         navigator.getBattery().then((battery) => {
           const updateBattery = () => {
+            setIsLinking(true)
             setRealBattery(battery)
-            // Ajustar temperatura según carga de forma realista
             setSimulatedTemp(prev => {
-              const targetTemp = battery.charging ? 35.5 : 27.2
+              const targetTemp = battery.charging ? 36.5 : 28.2
               return prev + (targetTemp - prev) * 0.05
             })
+            setTimeout(() => setIsLinking(false), 800)
           }
           updateBattery()
           battery.addEventListener('levelchange', updateBattery)
@@ -148,11 +149,10 @@ export default function AmpereScanDashboard() {
   const currentLevel = realBattery ? Math.round(realBattery.level * 100) : 50
   const isCharging = realBattery?.charging ?? false
   
-  // Capacidad de referencia realista
+  // Capacidad de referencia realista según dispositivo
   const capacity = deviceInfo.platform === "android" ? 5000 : 45000 
   
-  // Amperaje base dinámico: Si está cargando y la batería está baja, carga más rápido.
-  // Si está descargando, el consumo varía según el nivel (más brillo/CPU suele ser habitual a mayor carga)
+  // Amperaje base dinámico basado en estado de carga real
   const baseMA = isCharging 
     ? (deviceInfo.platform === "android" ? 2200 - (currentLevel * 10) : 5000 - (currentLevel * 20)) 
     : -(350 + (currentLevel * 2))
@@ -163,7 +163,7 @@ export default function AmpereScanDashboard() {
   const calculateEstimatedTime = () => {
     if (!realBattery) return 0
     
-    // 1. Intentar obtener el tiempo real del sistema operativo (más preciso si está disponible)
+    // Prioridad 1: Datos directos del sistema operativo (lo más real)
     if (isCharging && realBattery.chargingTime !== Infinity && realBattery.chargingTime > 0) {
       return Math.round(realBattery.chargingTime / 60)
     }
@@ -171,16 +171,14 @@ export default function AmpereScanDashboard() {
       return Math.round(realBattery.dischargingTime / 60)
     }
     
-    // 2. Fallback: Cálculo matemático exacto basado en mA actuales si el sistema no da el dato
+    // Prioridad 2: Cálculo basado en amperaje si el SO no da el dato
     const absMA = Math.abs(currentMA)
-    if (absMA < 10) return 0 // Evitar división por cero o valores insignificantes
+    if (absMA < 10) return 0
     
     if (isCharging) {
-      // Cuánto mAh faltan para el 100%
       const remainingMah = ((100 - currentLevel) * capacity) / 100
       return Math.round((remainingMah / absMA) * 60)
     } else {
-      // Cuánto mAh quedan hasta el 0%
       const availableMah = (currentLevel * capacity) / 100
       return Math.round((availableMah / absMA) * 60)
     }
@@ -208,7 +206,7 @@ export default function AmpereScanDashboard() {
           <div className="flex flex-col">
             <h1 className="text-lg font-extrabold tracking-tight leading-none">Ampere Scan</h1>
             <div className="flex items-center gap-1.5 mt-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_5px_green]" />
+              <span className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${isLinking ? 'bg-primary scale-150 shadow-[0_0_10px_var(--primary)]' : 'bg-green-500 shadow-[0_0_5px_green]'}`} />
               <span className="text-[9px] text-primary font-mono uppercase tracking-[0.2em]">Hardware Link</span>
             </div>
           </div>
